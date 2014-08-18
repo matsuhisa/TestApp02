@@ -1,18 +1,25 @@
 package com.example.matsuhisahironobu.testapp02;
 
-import android.app.Activity;
 import android.app.ListActivity;
+import android.app.LoaderManager;
+import android.app.LoaderManager.LoaderCallbacks;
+import android.content.ContentResolver;
 import android.content.ContentValues;
+import android.content.CursorLoader;
+import android.content.Intent;
+import android.content.Loader;
+
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
 import android.os.Bundle;
 import android.view.Menu;
 import android.view.MenuItem;
+import android.view.View;
+import android.widget.ListView;
 import android.widget.SimpleCursorAdapter;
 
-import java.util.List;
-
-public class MyActivity extends ListActivity {
+public class MyActivity extends ListActivity
+{
     // DB の設定
     public static final String TABLE_NAME   = "memo_data";
     public static final String COLUMN_ID    = "_id";
@@ -45,6 +52,37 @@ public class MyActivity extends ListActivity {
         setListAdapter(adapter);
     }
 
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data)
+    {
+        if(resultCode == RESULT_OK)
+        {
+            MemoDBOpenHelper helper = new MemoDBOpenHelper(this);
+            SQLiteDatabase db = helper.getWritableDatabase();
+
+            // 追加するデーターを用意する
+            ContentValues values = new ContentValues();
+            values.put("title", data.getStringExtra("title"));
+            values.put("body", data.getStringExtra("body"));
+
+            switch (requestCode)
+            {
+                case 1:
+                    db.insert("memo_data", null, values);
+                    break;
+                case 2:
+                    long id = data.getLongExtra("id", 0);
+                    String[] whereargs = new String[]{Long.toString(id)};
+                    db.update("memo_data", values, "_id = ?", whereargs);
+                    break;
+                default:
+                    break;
+            }
+            reloadCursor();
+        }
+        super.onActivityResult(requestCode, resultCode, data);
+    }
+
     // アクションバーの生成
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
@@ -63,6 +101,14 @@ public class MyActivity extends ListActivity {
 
         switch (item.getItemId()) {
             case R.id.operate_additem:
+
+                Intent intent = new Intent();
+                intent.setClass(getApplicationContext(),EditorActivity.class);
+
+                startActivityForResult(intent, 1);
+                result = true;
+
+/*
             //
             helper = new MemoDBOpenHelper(this);
             db = helper.getWritableDatabase();
@@ -76,6 +122,7 @@ public class MyActivity extends ListActivity {
 
             reloadCursor();
             result = true;
+*/
             break;
 
             case R.id.operate_deleteitem:
@@ -100,6 +147,35 @@ public class MyActivity extends ListActivity {
         }
 
         return super.onOptionsItemSelected(item);
+    }
+
+    /**
+     *
+     * リストビュークリック時の処理
+     */
+    @Override
+    protected void onListItemClick(ListView l, View v, int position, long id)
+    {
+        // 読み込み用のDBの取得
+        MemoDBOpenHelper helper = new MemoDBOpenHelper(this);
+        SQLiteDatabase db = helper.getReadableDatabase();
+
+        String[] colums = new String[]{"title", "body"};
+        String[] whereargs = new String[]{Long.toString(id)};
+
+        // 値の取得
+        Cursor c = db.query(TABLE_NAME, colums, SQL_WHERE_ID, whereargs, null, null, null);
+        c.moveToFirst();
+
+        // 編集画面を表示する
+        Intent intent = new Intent();
+        intent.setClass(getApplicationContext(), EditorActivity.class);
+        intent.putExtra("id", id);
+
+        intent.putExtra("title", c.getString(0));
+        intent.putExtra("body", c.getString(1));
+
+        startActivityForResult(intent, 2);
     }
 
     private void reloadCursor()
